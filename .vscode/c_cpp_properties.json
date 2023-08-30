@@ -1,0 +1,17 @@
+{
+    "configurations": [
+        {
+            "name": "Linux",   // "name" 表示该配置的名称。
+            "includePath": [
+                "${workspaceFolder}/**",
+                "/home/rpdzkj/Desktop/NanoDet/include/**"
+            ],
+            "defines": [],      // "defines" 表示定义的宏列表，这里为空。
+            "compilerPath": "/usr/bin/gcc",       // "compilerPath" 表示编译器所在的路径，这里使用 /usr/bin/clang 编译器。
+            "cStandard": "c17",         // 表示 C 语言标准，这里为 C17。
+            "cppStandard": "c++14",     // 表示 C++ 语言标准，这里为 C++14。
+            "intelliSenseMode": "linux-gcc-arm64"   //  表示 IntelliSense 模式，这里使用 linux-clang-x64 表示使用 Linux 平台上的 clang 编译器进行智能提示。
+        }
+    ],
+    "version": 4
+}
