@@ -8,12 +8,8 @@
 using namespace cv;
 using namespace std;
 
-NanoDet_Plus::NanoDet_Plus(const string model_path, const string classesFile, int imgsize, float nms_threshold, float objThreshold)
+NanoDet_Plus::NanoDet_Plus(const string model_path, int imgsize, float nms_threshold, float objThreshold)
 {
-    ifstream ifs(classesFile.c_str());
-    string line;
-    while (getline(ifs, line))
-        this->class_names.push_back(line);
     this->num_class = class_names.size();
     this->nms_threshold = nms_threshold;
     this->score_threshold = objThreshold;
@@ -48,12 +44,10 @@ NanoDet_Plus::NanoDet_Plus(const string model_path, const string classesFile, in
     get_tensor_quant_param(input_tensor, &this->in_scale, &this->in_zp, 1);
 }
 
-// @brief:  get input data, keep aspect ratio and fill to the center of letter box
-// @param:  lb[in/out]  letter box image inst
-// @param:  pad[out]    top and left pad size
-// @return: resize scale from origin image to letter box
+
 float NanoDet_Plus::get_input_data(Mat &img, const float *mean, const float *norm, image &lb, image &pad)
 {
+    cv::Mat img_temp = img.clone();
     if (img.empty())
     {
         fprintf(stderr, "cv::imread failed\n");
@@ -67,10 +61,10 @@ float NanoDet_Plus::get_input_data(Mat &img, const float *mean, const float *nor
 
     if (w != lb.w || h != lb.h)
     {
-        cv::resize(img, img, cv::Size(w, h));
+        cv::resize(img, img_temp, cv::Size(w, h));
     }
 
-    img.convertTo(img, CV_32FC3);
+    img_temp.convertTo(img_temp, CV_32FC3);
 
     // Pad to letter box rectangle
     pad.w = lb.w - w; //(w + 31) / 32 * 32 - w;
@@ -79,7 +73,7 @@ float NanoDet_Plus::get_input_data(Mat &img, const float *mean, const float *nor
     cv::Mat img_pad(lb.w, lb.h, CV_32FC3, // cv::Scalar(0));
                     cv::Scalar(0.5 / norm[0] + mean[0], 0.5 / norm[0] + mean[0], 0.5 / norm[2] + mean[2]));
     // Letterbox filling
-    cv::copyMakeBorder(img, img_pad, pad.h / 2, pad.h - pad.h / 2, pad.w / 2, pad.w - pad.w / 2, cv::BORDER_CONSTANT, cv::Scalar(0, 0, 0));
+    cv::copyMakeBorder(img_temp, img_pad, pad.h / 2, pad.h - pad.h / 2, pad.w / 2, pad.w - pad.w / 2, cv::BORDER_CONSTANT, cv::Scalar(0, 0, 0));
 
     img_pad.convertTo(img_pad, CV_32FC3);
     float *_data = (float *)img_pad.data;
@@ -232,7 +226,44 @@ void NanoDet_Plus::nms(vector<BoxInfo> &input_boxes)
                       input_boxes.end());
 }
 
-void NanoDet_Plus::detect(Mat &srcimg)
+void NanoDet_Plus::draw_objects(const cv::Mat &bgr, const std::vector<Object> &objects)
+{
+
+    cv::Mat image = bgr.clone();
+
+    for (size_t i = 0; i < objects.size(); i++)
+    {
+        const Object &obj = objects[i];
+
+        fprintf(stderr, "%2d: %3.0f%%, [%4.0f, %4.0f, %4.0f, %4.0f], %s\n", obj.label, obj.prob * 100, obj.rect.x,
+                obj.rect.y, obj.rect.x + obj.rect.width, obj.rect.y + obj.rect.height, (class_names[obj.label]).c_str());
+
+        cv::rectangle(image, obj.rect, cv::Scalar(255, 0, 0));
+
+        char text[256];
+        sprintf(text, "%s %.1f%%", class_names[obj.label].c_str(), obj.prob * 100);
+
+        int baseLine = 0;
+        cv::Size label_size = cv::getTextSize(text, cv::FONT_HERSHEY_SIMPLEX, 0.5, 1, &baseLine);
+
+        int x = obj.rect.x;
+        int y = obj.rect.y - label_size.height - baseLine;
+        if (y < 0)
+            y = 0;
+        if (x + label_size.width > image.cols)
+            x = image.cols - label_size.width;
+
+        cv::rectangle(image, cv::Rect(cv::Point(x, y), cv::Size(label_size.width, label_size.height + baseLine)),
+                      cv::Scalar(255, 255, 255), -1);
+
+        cv::putText(image, text, cv::Point(x, y + label_size.height), cv::FONT_HERSHEY_SIMPLEX, 0.5,
+                    cv::Scalar(0, 0, 0));
+    }
+
+    cv::imwrite("nanodet_out.jpg", image);
+}
+
+void NanoDet_Plus::detect(Mat &srcimg, std::vector<Object> &objects)
 {
 
     if (nullptr == this->graph)
@@ -251,9 +282,9 @@ void NanoDet_Plus::detect(Mat &srcimg)
             return;
         }
         this->init_done = true;
-#ifdef DEBUG
-        dump_graph(this->graph);
-#endif
+// #ifdef DEBUG
+//         dump_graph(this->graph);
+// #endif
     }
     /* prepare process, letterbox */
     Timer prepare_timer;
@@ -294,31 +325,83 @@ void NanoDet_Plus::detect(Mat &srcimg)
         out_data[c] = ((float)p_data[c] - (float)output_zp) * output_scale;
     }
 
-    generate_proposal(generate_boxes, out_data);
+    this->generate_proposal(generate_boxes, out_data);
     delete[] out_data;
 
     //// Perform non maximum suppression to eliminate redundant overlapping boxes with
     //// lower confidences
-    nms(generate_boxes);
-    for (size_t i = 0; i < generate_boxes.size(); ++i)
+    this->nms(generate_boxes);
+    fprintf(stderr, "generate_boxes.size(%d)\n", (int)generate_boxes.size());
+    
+    for (int i = 0; i < (int)generate_boxes.size(); i++)
     {
-        int xmin = (int)max((generate_boxes[i].x1 - (pad.w / 2)) / lb_scale, 0.f);
-        int ymin = (int)max((generate_boxes[i].y1 - (pad.h / 2)) / lb_scale, 0.f);
-        int xmax = (int)min((generate_boxes[i].x2 - (pad.w / 2)) / lb_scale, (float)srcimg.cols);
-        int ymax = (int)min((generate_boxes[i].y2 - (pad.h / 2)) / lb_scale, (float)srcimg.rows);
-        rectangle(srcimg, Point(xmin, ymin), Point(xmax, ymax), Scalar(0, 0, 255), 2);
-        string label = format("%.2f", generate_boxes[i].score);
-        label = this->class_names[generate_boxes[i].label] + ":" + label;
-        putText(srcimg, label, Point(xmin, ymin - 5), FONT_HERSHEY_SIMPLEX, 0.75, Scalar(0, 255, 0), 1);
+        Object obj;
+        obj.rect.x = generate_boxes[i].x1;
+        obj.rect.y = generate_boxes[i].y1;
+        obj.rect.width = generate_boxes[i].x2 - generate_boxes[i].x1;
+        obj.rect.height = generate_boxes[i].y2 - generate_boxes[i].y1;
+        obj.label = generate_boxes[i].label;
+        obj.prob = generate_boxes[i].score;
+        objects.push_back(obj);
     }
+
+    /* draw the result */
+    float scale_letterbox;
+    int resize_rows;
+    int resize_cols;
+    if ((this->inpHeight * 1.0 / srcimg.rows) < (this->inpWidth * 1.0 / srcimg.cols))
+    {
+        scale_letterbox = this->inpHeight * 1.0 / srcimg.rows;
+    }
+    else
+    {
+        scale_letterbox = this->inpWidth * 1.0 / srcimg.cols;
+    }
+    resize_cols = int(scale_letterbox * srcimg.cols);
+    resize_rows = int(scale_letterbox * srcimg.rows);
+
+    int tmp_h = (this->inpHeight - resize_rows) / 2;
+    int tmp_w = (this->inpWidth - resize_cols) / 2;
+
+    float ratio_x = (float)srcimg.rows / resize_rows;
+    float ratio_y = (float)srcimg.cols / resize_cols;
+
+    int count = objects.size();
+    fprintf(stderr, "detection num: %d\n", count);
+
+    for (int i = 0; i < count; i++)
+    {
+        float x0 = (objects[i].rect.x);
+        float y0 = (objects[i].rect.y);
+        float x1 = (objects[i].rect.x + objects[i].rect.width);
+        float y1 = (objects[i].rect.y + objects[i].rect.height);
+
+        x0 = (x0 - tmp_w) * ratio_x;
+        y0 = (y0 - tmp_h) * ratio_y;
+        x1 = (x1 - tmp_w) * ratio_x;
+        y1 = (y1 - tmp_h) * ratio_y;
+
+        x0 = (std::max)((std::min)(x0, (float)(srcimg.cols - 1)), 0.f);
+        y0 = (std::max)((std::min)(y0, (float)(srcimg.rows - 1)), 0.f);
+        x1 = (std::max)((std::min)(x1, (float)(srcimg.cols - 1)), 0.f);
+        y1 = (std::max)((std::min)(y1, (float)(srcimg.rows - 1)), 0.f);
+
+        objects[i].rect.x = x0;
+        objects[i].rect.y = y0;
+        objects[i].rect.width = x1 - x0;
+        objects[i].rect.height = y1 - y0;
+    }
+
+    // draw_objects(1080, objects);
 }
 
 int NanoDet_Plus::init()
 {
     /* set runtime options */
+    struct options opt;
     opt.num_thread = 1;
     opt.cluster = TENGINE_CLUSTER_ALL;
-    opt.precision = TENGINE_MODE_FP32;
+    opt.precision = TENGINE_MODE_UINT8;
     opt.affinity = 0;
 
     Timer timer;

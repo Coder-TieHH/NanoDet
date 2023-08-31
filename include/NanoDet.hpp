@@ -17,29 +17,46 @@ typedef struct BoxInfo
     int label;
 } BoxInfo;
 
+typedef struct Object
+{
+    cv::Rect_<float> rect;
+    int label;
+    float prob;
+} Object;
 
+static vector<string> class_names = {
+    "person", "bicycle", "car", "motorcycle", "airplane", "bus", "train", "truck", "boat", "traffic light",
+    "fire hydrant", "stop sign", "parking meter", "bench", "bird", "cat", "dog", "horse", "sheep", "cow",
+    "elephant", "bear", "zebra", "giraffe", "backpack", "umbrella", "handbag", "tie", "suitcase", "frisbee",
+    "skis", "snowboard", "sports ball", "kite", "baseball bat", "baseball glove", "skateboard", "surfboard",
+    "tennis racket", "bottle", "wine glass", "cup", "fork", "knife", "spoon", "bowl", "banana", "apple",
+    "sandwich", "orange", "broccoli", "carrot", "hot dog", "pizza", "donut", "cake", "chair", "couch",
+    "potted plant", "bed", "dining table", "toilet", "tv", "laptop", "mouse", "remote", "keyboard", "cell phone",
+    "microwave", "oven", "toaster", "sink", "refrigerator", "book", "clock", "vase", "scissors", "teddy bear",
+    "hair drier", "toothbrush"};
 
 class NanoDet_Plus
 {
 public:
-    NanoDet_Plus(string model_path, string classesFile, int imgsize, float nms_threshold, float objThreshold);
+    NanoDet_Plus(string model_path, int imgsize, float nms_threshold, float objThreshold);
     ~NanoDet_Plus();
-    void detect(Mat &cv_image);
+    void detect(Mat &cv_image, std::vector<Object> &objects);
+
+private:
     int init();
     float get_input_data(Mat &img, const float *mean, const float *norm, image &lb, image &pad);
     void get_input_uint8_data(float *input_fp32, uint8_t *input_data, int size, float input_scale, int zero_point);
-
-private:
-    float score_threshold = 0.5;
-    float nms_threshold = 0.5;
-    vector<string> class_names;
-    int num_class;
-    int dims[4];
-    struct options opt;
-
+    void draw_objects(const cv::Mat &bgr, const std::vector<Object> &objects);
     void softmax_(const float *x, float *y, int length);
     void generate_proposal(vector<BoxInfo> &generate_boxes, const float *preds);
     void nms(vector<BoxInfo> &input_boxes);
+
+    float score_threshold = 0.5;
+    float nms_threshold = 0.5;
+    
+    int num_class;
+    int dims[4];
+    
     const bool keep_ratio = false;
     int inpWidth;
     int inpHeight;

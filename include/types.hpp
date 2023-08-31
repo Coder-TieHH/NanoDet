@@ -44,12 +44,12 @@ typedef struct
     BBox box;
 } Region;
 
-typedef struct
-{
-    int label;
-    float score;
-    BBox box;
-} Object;
+// typedef struct
+// {
+//     int label;
+//     float score;
+//     BBox box;
+// } Object;
 
 typedef struct
 {

@@ -3,13 +3,13 @@
 
 # compile C with /usr/bin/cc
 # compile CXX with /usr/bin/c++
-C_FLAGS = -g   -std=c++11
+C_FLAGS = -g  
 
 C_DEFINES = 
 
 C_INCLUDES = -I/home/rpdzkj/Desktop/NanoDet/include -isystem /usr/include/opencv 
 
-CXX_FLAGS = -g   -std=c++11
+CXX_FLAGS = -g  
 
 CXX_DEFINES = 
 

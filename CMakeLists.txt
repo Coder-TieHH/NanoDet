@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.0.2)
 project(NanoDet_demo)
 
-add_compile_options(-std=c++11)
+# add_compile_options(-std=c++11)
 find_package(OpenCV REQUIRED)
 
 set(CMAKE_BUILD_TYPE DEBUG)
