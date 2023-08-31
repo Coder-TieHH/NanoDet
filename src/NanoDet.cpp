@@ -44,7 +44,6 @@ NanoDet_Plus::NanoDet_Plus(const string model_path, int imgsize, float nms_thres
     get_tensor_quant_param(input_tensor, &this->in_scale, &this->in_zp, 1);
 }
 
-
 float NanoDet_Plus::get_input_data(Mat &img, const float *mean, const float *norm, image &lb, image &pad)
 {
     cv::Mat img_temp = img.clone();
@@ -282,9 +281,9 @@ void NanoDet_Plus::detect(Mat &srcimg, std::vector<Object> &objects)
             return;
         }
         this->init_done = true;
-// #ifdef DEBUG
-//         dump_graph(this->graph);
-// #endif
+        // #ifdef DEBUG
+        //         dump_graph(this->graph);
+        // #endif
     }
     /* prepare process, letterbox */
     Timer prepare_timer;
@@ -292,17 +291,19 @@ void NanoDet_Plus::detect(Mat &srcimg, std::vector<Object> &objects)
     image lb = make_image(dims[3], dims[2], dims[1]);
     int img_size = lb.w * lb.h * lb.c;
     image pad = make_empty_image(lb.w, lb.h, lb.c);
+
     float lb_scale = get_input_data(srcimg, mean, norm, lb, pad);
     get_input_uint8_data(lb.data, this->input_uint8.data(), img_size, this->in_scale, this->in_zp);
-    float prepare_cost = (float)prepare_timer.Cost();
-    fprintf(stdout, "Prepare cost   %.2fms.\n", prepare_cost);
+    free(lb.data);
+    prepare_cost = (float)prepare_timer.Cost();
+    // fprintf(stdout, "Prepare cost   %.2fms.\n", prepare_cost);
     // 预处理结束
 
     /* network inference */
     Timer model_timer;
     int ret = run_graph(this->graph, 1);
-    float top_model_cost = (float)model_timer.Cost();
-    fprintf(stdout, "Run graph cost %.2fms.\n", top_model_cost);
+    top_model_cost = (float)model_timer.Cost();
+    // fprintf(stdout, "Run graph cost %.2fms.\n", top_model_cost);
     if (0 != ret)
     {
         fprintf(stderr, "Run graph failed.\n");
@@ -326,13 +327,13 @@ void NanoDet_Plus::detect(Mat &srcimg, std::vector<Object> &objects)
     }
 
     this->generate_proposal(generate_boxes, out_data);
-    delete[] out_data;
+    free(out_data);
 
     //// Perform non maximum suppression to eliminate redundant overlapping boxes with
     //// lower confidences
     this->nms(generate_boxes);
-    fprintf(stderr, "generate_boxes.size(%d)\n", (int)generate_boxes.size());
-    
+    // fprintf(stderr, "generate_boxes.size(%d)\n", (int)generate_boxes.size());
+
     for (int i = 0; i < (int)generate_boxes.size(); i++)
     {
         Object obj;
@@ -367,7 +368,7 @@ void NanoDet_Plus::detect(Mat &srcimg, std::vector<Object> &objects)
     float ratio_y = (float)srcimg.cols / resize_cols;
 
     int count = objects.size();
-    fprintf(stderr, "detection num: %d\n", count);
+    // fprintf(stderr, "detection num: %d\n", count);
 
     for (int i = 0; i < count; i++)
     {

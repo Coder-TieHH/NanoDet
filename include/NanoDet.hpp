@@ -42,6 +42,8 @@ public:
     ~NanoDet_Plus();
     void detect(Mat &cv_image, std::vector<Object> &objects);
 
+    float top_model_cost; // run 的时间
+    float prepare_cost;     // 准备的时间
 private:
     int init();
     float get_input_data(Mat &img, const float *mean, const float *norm, image &lb, image &pad);
@@ -53,10 +55,11 @@ private:
 
     float score_threshold = 0.5;
     float nms_threshold = 0.5;
-    
+
     int num_class;
     int dims[4];
-    
+
+
     const bool keep_ratio = false;
     int inpWidth;
     int inpHeight;

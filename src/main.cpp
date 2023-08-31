@@ -3,9 +3,10 @@
 #include <math.h>
 #include <opencv2/imgproc.hpp>
 #include <opencv2/highgui.hpp>
+#include <sstream>
 
 std::vector<Object> objects;
-
+char fps_show[10] = "FPS:";
 int main()
 {
 	NanoDet_Plus mynet("/home/rpdzkj/Desktop/NanoDet/models/nanodet-plus_320_uint8_tmfile", 320, 0.2, 0.3);
@@ -20,7 +21,6 @@ int main()
 	{
 		while (capture.read(srcimg))
 		{
-
 			mynet.detect(srcimg, objects);
 			for (size_t i = 0; i < objects.size(); i++)
 			{
@@ -44,11 +44,15 @@ int main()
 				if (x + label_size.width > srcimg.cols)
 					x = srcimg.cols - label_size.width;
 
+				float fps = 1 / (mynet.top_model_cost + mynet.prepare_cost);
+				sprintf(fps_show, "FPS: %.2f", fps);
+
 				cv::rectangle(srcimg, cv::Rect(cv::Point(x, y), cv::Size(label_size.width, label_size.height + baseLine)),
 							  cv::Scalar(255, 255, 255), -1);
 
 				cv::putText(srcimg, text, cv::Point(x, y + label_size.height), cv::FONT_HERSHEY_SIMPLEX, 0.5,
 							cv::Scalar(0, 0, 0));
+				cv::putText(srcimg, fps_show, cv::Point(10, 20), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 255, 255), 1);
 			}
 
 			cv::imshow("NanoDet_demo", srcimg);
